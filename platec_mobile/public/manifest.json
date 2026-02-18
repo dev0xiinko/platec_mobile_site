@@ -1,0 +1,19 @@
+{
+  "name": "Student Attendance",
+  "short_name": "Attendance",
+  "description": "Student Attendance Management System",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#7c3aed",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

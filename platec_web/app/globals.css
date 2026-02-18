@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+:root {
+  /* Primary Theme */
+  --color-primary: #7357C6;
+  --color-primary-hover: #5d44a8;
+  --color-primary-light: #E8E3F5;
+
+  --background: #F9FAFB;
+  --foreground: #111827;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(115, 87, 198, 0.2);
+  color: var(--foreground);
+}
