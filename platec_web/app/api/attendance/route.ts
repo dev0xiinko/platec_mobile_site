@@ -23,6 +23,17 @@ interface AttendanceWithStudent {
 // GET attendance records
 export async function GET(request: NextRequest) {
   try {
+    // Get admin ID from cookie token
+    const token = request.cookies.get('token')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const payload = verifyToken(token);
+    if (!payload || payload.type !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
     const studentId = searchParams.get('studentId');
@@ -36,10 +47,11 @@ export async function GET(request: NextRequest) {
       .from('attendance')
       .select(`
         id, date, status, remarks, class_id, created_at,
-        students!inner (id, student_id, name, course, year, section)
+        students!inner (id, student_id, name, course, year, section, admin_id)
       `, { count: 'exact' });
 
-    // Apply filters
+    // Apply filters - filter by admin_id through students table
+    query = query.eq('students.admin_id', payload.id);
     if (date) query = query.eq('date', date);
     if (studentId) query = query.eq('student_id', studentId);
     if (classId) query = query.eq('class_id', classId);
@@ -86,7 +98,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const token = request.cookies.get('token')?.value;
-    const decoded = token ? verifyToken(token) : null;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const payload = verifyToken(token);
+    if (!payload || payload.type !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const { studentId, date, status, remarks, classId } = await request.json();
 
@@ -95,6 +114,17 @@ export async function POST(request: NextRequest) {
         { error: 'Student ID, date, and status are required' },
         { status: 400 }
       );
+    }
+
+    // Verify student belongs to this admin
+    const { data: student } = await supabase
+      .from('students')
+      .select('id, admin_id')
+      .eq('id', studentId)
+      .single();
+
+    if (!student || student.admin_id !== payload.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Upsert attendance record - uses composite unique (student_id, date, class_id)
@@ -107,7 +137,7 @@ export async function POST(request: NextRequest) {
           status,
           remarks: remarks || null,
           class_id: classId || null,
-          marked_by: decoded?.id || null,
+          marked_by: payload.id,
         } as never,
         { onConflict: 'student_id,date,class_id' }
       )
@@ -116,7 +146,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Error creating attendance:', error);
-      return NextResponse.json({ error: 'Failed to create attendance' }, { status: 500 });
+      return NextResponse.json({ error: error.message || 'Failed to create attendance' }, { status: 500 });
     }
 
     // Create notification for absence or late

@@ -20,6 +20,9 @@ CREATE TABLE admins (
 
 CREATE INDEX idx_admins_email ON admins(email);
 
+-- Disable RLS on admins table
+ALTER TABLE admins DISABLE ROW LEVEL SECURITY;
+
 -- =============================================
 -- STUDENTS TABLE
 -- =============================================
@@ -32,13 +35,18 @@ CREATE TABLE students (
   course VARCHAR(100) NOT NULL,
   year INTEGER NOT NULL CHECK (year >= 1 AND year <= 6),
   section VARCHAR(10) NOT NULL,
+  admin_id UUID NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX idx_students_email ON students(email);
 CREATE INDEX idx_students_student_id ON students(student_id);
+CREATE INDEX idx_students_admin_id ON students(admin_id);
 CREATE INDEX idx_students_course_year_section ON students(course, year, section);
+
+-- Disable RLS on students table
+ALTER TABLE students DISABLE ROW LEVEL SECURITY;
 
 -- =============================================
 -- CLASSES TABLE
@@ -60,6 +68,9 @@ CREATE INDEX idx_classes_code ON classes(code);
 CREATE INDEX idx_classes_created_by ON classes(created_by);
 CREATE INDEX idx_classes_is_active ON classes(is_active);
 
+-- Disable RLS on classes table
+ALTER TABLE classes DISABLE ROW LEVEL SECURITY;
+
 -- =============================================
 -- CLASS ENROLLMENTS TABLE (Student-Class relationship)
 -- =============================================
@@ -73,6 +84,9 @@ CREATE TABLE class_enrollments (
 
 CREATE INDEX idx_enrollments_class_id ON class_enrollments(class_id);
 CREATE INDEX idx_enrollments_student_id ON class_enrollments(student_id);
+
+-- Disable RLS on class_enrollments table
+ALTER TABLE class_enrollments DISABLE ROW LEVEL SECURITY;
 
 -- =============================================
 -- ATTENDANCE TABLE
@@ -95,6 +109,9 @@ CREATE INDEX idx_attendance_class_id ON attendance(class_id);
 CREATE INDEX idx_attendance_date ON attendance(date);
 CREATE INDEX idx_attendance_status ON attendance(status);
 
+-- Disable RLS on attendance table
+ALTER TABLE attendance DISABLE ROW LEVEL SECURITY;
+
 -- =============================================
 -- NOTIFICATIONS TABLE
 -- =============================================
@@ -111,6 +128,9 @@ CREATE TABLE notifications (
 CREATE INDEX idx_notifications_student_id ON notifications(student_id);
 CREATE INDEX idx_notifications_read ON notifications(read);
 CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC);
+
+-- Disable RLS on notifications table
+ALTER TABLE notifications DISABLE ROW LEVEL SECURITY;
 
 -- =============================================
 -- UPDATED_AT TRIGGER FUNCTION

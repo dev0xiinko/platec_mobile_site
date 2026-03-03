@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     if (enrollError) {
       console.error('Error joining class:', enrollError);
-      return NextResponse.json({ error: 'Failed to join class' }, { status: 500 });
+      return NextResponse.json({ error: enrollError.message || 'Failed to join class' }, { status: 500 });
     }
 
     return NextResponse.json({

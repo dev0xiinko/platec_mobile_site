@@ -8,6 +8,13 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const token = request.cookies.get('token')?.value;
+    const decoded = token ? verifyToken(token) : null;
+
+    if (!decoded || decoded.type !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
 
     const { data: classData, error } = await supabase
@@ -17,6 +24,7 @@ export async function GET(
         admins (id, name, email)
       `)
       .eq('id', id)
+      .eq('created_by', decoded.id)
       .single();
 
     if (error || !classData) {
@@ -59,6 +67,17 @@ export async function PUT(
     const { id } = await params;
     const { name, description, subject, schedule, is_active } = await request.json();
 
+    // Verify class belongs to this admin
+    const { data: existingClass } = await supabase
+      .from('classes')
+      .select('id, created_by')
+      .eq('id', id)
+      .single();
+
+    if (!existingClass || existingClass.created_by !== decoded.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const updateData: Record<string, unknown> = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
@@ -79,7 +98,7 @@ export async function PUT(
 
     if (error) {
       console.error('Error updating class:', error);
-      return NextResponse.json({ error: 'Failed to update class' }, { status: 500 });
+      return NextResponse.json({ error: error.message || 'Failed to update class' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, class: classData });
@@ -104,11 +123,22 @@ export async function DELETE(
 
     const { id } = await params;
 
+    // Verify class belongs to this admin
+    const { data: classData } = await supabase
+      .from('classes')
+      .select('id, created_by')
+      .eq('id', id)
+      .single();
+
+    if (!classData || classData.created_by !== decoded.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { error } = await supabase.from('classes').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting class:', error);
-      return NextResponse.json({ error: 'Failed to delete class' }, { status: 500 });
+      return NextResponse.json({ error: error.message || 'Failed to delete class' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, message: 'Class deleted' });

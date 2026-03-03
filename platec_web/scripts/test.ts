@@ -15,6 +15,8 @@ interface TestResult {
 }
 
 const results: TestResult[] = [];
+let adminToken = '';
+let adminCookie = '';
 let studentToken = '';
 
 async function runTest(name: string, fn: () => Promise<void>) {
@@ -55,7 +57,7 @@ async function main() {
 
   await runTest('Tables Exist', async () => {
     const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
-    const tables = ['admins', 'students', 'attendance', 'notifications'];
+    const tables = ['admins', 'students', 'attendance', 'notifications', 'classes', 'class_enrollments'];
     for (const table of tables) {
       const { error } = await supabase.from(table).select('count').limit(1);
       assert(!error, `Table ${table} does not exist or is not accessible`);
@@ -65,7 +67,7 @@ async function main() {
   await runTest('Data Present', async () => {
     const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
     const { count } = await supabase.from('students').select('*', { count: 'exact', head: true });
-    assert((count || 0) > 0, 'No students found. Run npm run db:seed first');
+    assert((count || 0) > 0, 'No students found. Run: npm run db:seed:fresh');
   });
 
   // API Server Tests
@@ -85,6 +87,13 @@ async function main() {
     assert(response.ok, `Login failed with status ${response.status}`);
     const data = await response.json();
     assert(data.success, 'Login response not successful');
+    assert(data.admin?.id, 'Admin ID missing from response');
+    
+    // Extract cookie from Set-Cookie header
+    const setCookieHeader = response.headers.get('set-cookie');
+    if (setCookieHeader) {
+      adminCookie = setCookieHeader.split(';')[0];
+    }
   });
 
   await runTest('Student Login (Portal API)', async () => {
@@ -107,25 +116,68 @@ async function main() {
   // Admin API Tests
   console.log('\n👤 Admin API Tests:');
 
-  await runTest('GET /api/students', async () => {
-    const response = await fetch(`${API_URL}/api/students`);
-    assert(response.ok, `Failed with status ${response.status}`);
+  await runTest('GET /api/students (authenticated)', async () => {
+    assert(!!adminCookie, 'No admin cookie available from login');
+    const response = await fetch(`${API_URL}/api/students`, {
+      headers: {
+        'Cookie': adminCookie,
+      },
+    });
+    assert(response.ok, `Failed with status ${response.status}: ${response.statusText}`);
     const data = await response.json();
     assert(data.success && Array.isArray(data.students), 'Invalid response format');
+    assert(data.students.length > 0, 'Expected at least one student from seeded data');
   });
 
-  await runTest('GET /api/attendance', async () => {
-    const response = await fetch(`${API_URL}/api/attendance`);
+  await runTest('GET /api/classes (authenticated)', async () => {
+    assert(!!adminCookie, 'No admin cookie available from login');
+    const response = await fetch(`${API_URL}/api/classes`, {
+      headers: {
+        'Cookie': adminCookie,
+      },
+    });
+    assert(response.ok, `Failed with status ${response.status}`);
+    const data = await response.json();
+    assert(data.success && Array.isArray(data.classes), 'Invalid response format');
+  });
+
+  await runTest('GET /api/attendance (authenticated)', async () => {
+    assert(!!adminCookie, 'No admin cookie available from login');
+    const response = await fetch(`${API_URL}/api/attendance`, {
+      headers: {
+        'Cookie': adminCookie,
+      },
+    });
     assert(response.ok, `Failed with status ${response.status}`);
     const data = await response.json();
     assert(data.success, 'Invalid response format');
   });
 
-  await runTest('GET /api/reports/dashboard', async () => {
-    const response = await fetch(`${API_URL}/api/reports/dashboard`);
+  await runTest('GET /api/reports/dashboard (authenticated)', async () => {
+    assert(!!adminCookie, 'No admin cookie available from login');
+    const response = await fetch(`${API_URL}/api/reports/dashboard`, {
+      headers: {
+        'Cookie': adminCookie,
+      },
+    });
     assert(response.ok, `Failed with status ${response.status}`);
     const data = await response.json();
     assert(data.success && data.dashboard, 'Invalid response format');
+  });
+
+  await runTest('Admin Isolation - Students filtered by admin', async () => {
+    assert(!!adminCookie, 'No admin cookie available from login');
+    const response = await fetch(`${API_URL}/api/students`, {
+      headers: {
+        'Cookie': adminCookie,
+      },
+    });
+    const data = await response.json();
+    assert(data.success && Array.isArray(data.students), 'Invalid response format');
+    // Verify all students exist
+    data.students.forEach((student: any) => {
+      assert(student.id, 'Student missing ID');
+    });
   });
 
   // Student Portal API Tests
@@ -159,6 +211,19 @@ async function main() {
 
     const data = await response.json();
     assert(data.success, 'Invalid response format');
+  });
+
+  // Authentication Tests
+  console.log('\n🔐 Authentication Tests:');
+
+  await runTest('Unauthenticated requests denied (students)', async () => {
+    const response = await fetch(`${API_URL}/api/students`);
+    assert(response.status === 401, `Expected 401, got ${response.status}`);
+  });
+
+  await runTest('Unauthenticated requests denied (classes)', async () => {
+    const response = await fetch(`${API_URL}/api/classes`);
+    assert(response.status === 401, `Expected 401, got ${response.status}`);
   });
 
   // Summary

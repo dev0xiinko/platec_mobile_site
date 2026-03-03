@@ -13,15 +13,23 @@ if (!supabaseUrl || !supabaseServiceKey) {
   process.exit(1);
 }
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+});
 
 const isFresh = process.argv.includes('--fresh');
 
 async function wipeDatabase() {
   console.log('🗑️  Wiping existing data...');
   
+  // Delete in order of dependencies
   await supabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('class_enrollments').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   await supabase.from('attendance').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('classes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   await supabase.from('students').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   await supabase.from('admins').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   
@@ -43,19 +51,17 @@ async function seed() {
   console.log('👤 Creating admin user...');
   const { data: admin, error: adminError } = await supabase
     .from('admins')
-    .upsert(
-      {
-        name: 'Admin User',
-        email: 'admin@sams.com',
-        password: adminPassword,
-      },
-      { onConflict: 'email' }
-    )
+    .insert({
+      name: 'Admin User',
+      email: 'admin@sams.com',
+      password: adminPassword,
+    })
     .select()
     .single();
 
   if (adminError) {
     console.error('Error creating admin:', adminError);
+    process.exit(1);
   } else {
     console.log(`   ✅ Admin: ${admin.email}`);
   }
@@ -78,10 +84,7 @@ async function seed() {
   for (const student of students) {
     const { data, error } = await supabase
       .from('students')
-      .upsert(
-        { ...student, password: studentPassword },
-        { onConflict: 'email' }
-      )
+      .insert({ ...student, password: studentPassword, admin_id: admin.id })
       .select('id, student_id, name')
       .single();
 
@@ -114,13 +117,15 @@ async function seed() {
         date: dateStr,
         status,
         remarks: status === 'late' ? 'Arrived 10 minutes late' : null,
+        class_id: null,
+        marked_by: admin.id,
       });
     }
   }
 
   const { error: attendanceError } = await supabase
     .from('attendance')
-    .upsert(attendanceRecords, { onConflict: 'student_id,date' });
+    .insert(attendanceRecords);
 
   if (attendanceError) {
     console.error('   ❌ Error creating attendance:', attendanceError.message);

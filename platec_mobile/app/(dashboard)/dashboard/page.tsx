@@ -175,11 +175,11 @@ export default function DashboardPage() {
           
           {data?.recentAttendance && data.recentAttendance.length > 0 ? (
             <div className="space-y-2">
-              {data.recentAttendance.map((record) => {
+              {data.recentAttendance.map((record, index) => {
                 const styles = getStatusStyles(record.status);
                 return (
                   <div
-                    key={record.id}
+                    key={`${record.id}-${record.date}-${index}`}
                     className="flex items-center justify-between p-4 bg-white border border-[#E5E7EB] rounded-xl"
                   >
                     <div className="flex items-center gap-3">

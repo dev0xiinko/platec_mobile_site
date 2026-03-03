@@ -15,6 +15,14 @@ function generateClassCode(): string {
 // GET all classes
 export async function GET(request: NextRequest) {
   try {
+    // Get admin ID from token
+    const token = request.cookies.get('token')?.value;
+    const decoded = token ? verifyToken(token) : null;
+
+    if (!decoded || decoded.type !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get('active') === 'true';
 
@@ -25,6 +33,7 @@ export async function GET(request: NextRequest) {
         admins (id, name, email),
         class_enrollments (count)
       `)
+      .eq('created_by', decoded.id)
       .order('created_at', { ascending: false });
 
     if (activeOnly) {
@@ -112,7 +121,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Error creating class:', error);
-      return NextResponse.json({ error: 'Failed to create class' }, { status: 500 });
+      return NextResponse.json({ error: error.message || 'Failed to create class' }, { status: 500 });
     }
 
     return NextResponse.json({

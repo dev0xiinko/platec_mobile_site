@@ -8,7 +8,25 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const token = request.cookies.get('token')?.value;
+    const decoded = token ? verifyToken(token) : null;
+
+    if (!decoded || decoded.type !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
+
+    // Verify class belongs to this admin
+    const { data: classData } = await supabase
+      .from('classes')
+      .select('id, created_by')
+      .eq('id', id)
+      .single();
+
+    if (!classData || classData.created_by !== decoded.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const { data: enrollments, error } = await supabase
       .from('class_enrollments')
@@ -61,15 +79,26 @@ export async function POST(
       return NextResponse.json({ error: 'Student ID is required' }, { status: 400 });
     }
 
-    // Check if class exists
+    // Check if class exists and belongs to this admin
     const { data: classData } = await supabase
       .from('classes')
-      .select('id')
+      .select('id, created_by')
       .eq('id', id)
       .single();
 
-    if (!classData) {
+    if (!classData || classData.created_by !== decoded.id) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 });
+    }
+
+    // Check if student exists and belongs to this admin
+    const { data: studentData } = await supabase
+      .from('students')
+      .select('id, admin_id')
+      .eq('id', studentId)
+      .single();
+
+    if (!studentData || studentData.admin_id !== decoded.id) {
+      return NextResponse.json({ error: 'Student not found' }, { status: 404 });
     }
 
     // Check if already enrolled
@@ -96,7 +125,7 @@ export async function POST(
 
     if (error) {
       console.error('Error enrolling student:', error);
-      return NextResponse.json({ error: 'Failed to enroll student' }, { status: 500 });
+      return NextResponse.json({ error: error.message || 'Failed to enroll student' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, enrollment }, { status: 201 });
@@ -127,6 +156,17 @@ export async function DELETE(
       return NextResponse.json({ error: 'Student ID is required' }, { status: 400 });
     }
 
+    // Verify class belongs to this admin
+    const { data: classData } = await supabase
+      .from('classes')
+      .select('id, created_by')
+      .eq('id', id)
+      .single();
+
+    if (!classData || classData.created_by !== decoded.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { error } = await supabase
       .from('class_enrollments')
       .delete()
@@ -135,7 +175,7 @@ export async function DELETE(
 
     if (error) {
       console.error('Error removing student:', error);
-      return NextResponse.json({ error: 'Failed to remove student' }, { status: 500 });
+      return NextResponse.json({ error: error.message || 'Failed to remove student' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, message: 'Student removed from class' });

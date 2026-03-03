@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import supabase from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
+    // Get admin ID from token
+    const token = request.cookies.get('token')?.value;
+    const decoded = token ? verifyToken(token) : null;
+
+    if (!decoded || decoded.type !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'daily';
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
@@ -36,7 +45,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Build student filter query
-    let studentQuery = supabase.from('students').select('id, student_id, name, course, year, section');
+    let studentQuery = supabase.from('students').select('id, student_id, name, course, year, section')
+      .eq('admin_id', decoded.id);
     if (course) studentQuery = studentQuery.eq('course', course);
     if (year) studentQuery = studentQuery.eq('year', parseInt(year));
     if (section) studentQuery = studentQuery.eq('section', section);

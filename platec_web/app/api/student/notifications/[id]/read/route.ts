@@ -30,7 +30,7 @@ export async function PUT(
 
     if (error) {
       console.error('Error marking notification as read:', error);
-      return NextResponse.json({ error: 'Failed to update notification' }, { status: 500 });
+      return NextResponse.json({ error: error.message || 'Failed to update notification' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

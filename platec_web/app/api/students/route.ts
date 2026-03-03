@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import supabase from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
 
 // GET all students
 export async function GET(request: NextRequest) {
   try {
+    // Get admin ID from cookie token
+    const token = request.cookies.get('token')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const payload = verifyToken(token);
+    if (!payload || payload.type !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const course = searchParams.get('course');
     const year = searchParams.get('year');
@@ -16,7 +28,8 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('students')
-      .select('id, student_id, name, email, course, year, section, created_at', { count: 'exact' });
+      .select('id, student_id, name, email, course, year, section, created_at', { count: 'exact' })
+      .eq('admin_id', payload.id);
 
     // Apply filters
     if (course) query = query.eq('course', course);
@@ -55,6 +68,17 @@ export async function GET(request: NextRequest) {
 // POST create new student
 export async function POST(request: NextRequest) {
   try {
+    // Get admin ID from cookie token
+    const token = request.cookies.get('token')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const payload = verifyToken(token);
+    if (!payload || payload.type !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { studentId, name, email, password, course, year, section } = await request.json();
 
     // Validate input
@@ -90,13 +114,14 @@ export async function POST(request: NextRequest) {
         course,
         year,
         section,
+        admin_id: payload.id,
       })
       .select('id, student_id, name, email, course, year, section, created_at')
       .single();
 
     if (error) {
       console.error('Error creating student:', error);
-      return NextResponse.json({ error: 'Failed to create student' }, { status: 500 });
+      return NextResponse.json({ error: error.message || 'Failed to create student' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, student }, { status: 201 });

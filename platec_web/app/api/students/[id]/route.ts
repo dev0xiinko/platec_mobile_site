@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import supabase from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
 
 // GET single student
 export async function GET(
@@ -8,12 +9,24 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get admin ID from cookie token
+    const token = request.cookies.get('token')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const payload = verifyToken(token);
+    if (!payload || payload.type !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
 
     const { data: student, error } = await supabase
       .from('students')
-      .select('id, student_id, name, email, course, year, section, created_at')
+      .select('id, student_id, name, email, course, year, section, created_at, admin_id')
       .eq('id', id)
+      .eq('admin_id', payload.id)
       .single();
 
     if (error || !student) {
@@ -33,9 +46,31 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get admin ID from cookie token
+    const token = request.cookies.get('token')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const payload = verifyToken(token);
+    if (!payload || payload.type !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
     const body = await request.json();
     const { name, email, password, course, year, section } = body;
+
+    // Verify student belongs to this admin
+    const { data: student } = await supabase
+      .from('students')
+      .select('id, admin_id')
+      .eq('id', id)
+      .single();
+
+    if (!student || student.admin_id !== payload.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     // Build update object
     const updateData: Record<string, unknown> = {};
@@ -61,7 +96,7 @@ export async function PUT(
 
     if (error) {
       console.error('Error updating student:', error);
-      return NextResponse.json({ error: 'Failed to update student' }, { status: 500 });
+      return NextResponse.json({ error: error.message || 'Failed to update student' }, { status: 500 });
     }
 
     if (!student) {
@@ -81,13 +116,35 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get admin ID from cookie token
+    const token = request.cookies.get('token')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const payload = verifyToken(token);
+    if (!payload || payload.type !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
+
+    // Verify student belongs to this admin
+    const { data: student } = await supabase
+      .from('students')
+      .select('id, admin_id')
+      .eq('id', id)
+      .single();
+
+    if (!student || student.admin_id !== payload.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const { error } = await supabase.from('students').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting student:', error);
-      return NextResponse.json({ error: 'Failed to delete student' }, { status: 500 });
+      return NextResponse.json({ error: error.message || 'Failed to delete student' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, message: 'Student deleted' });

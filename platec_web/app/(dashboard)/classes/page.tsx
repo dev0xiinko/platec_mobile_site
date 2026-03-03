@@ -60,7 +60,9 @@ export default function ClassesPage() {
 
   const fetchClasses = useCallback(async () => {
     try {
-      const res = await fetch('/api/classes');
+      const res = await fetch('/api/classes', {
+        credentials: 'include',
+      });
       const data = await res.json();
       if (data.success) {
         setClasses(data.classes);
@@ -88,6 +90,7 @@ export default function ClassesPage() {
       const res = await fetch('/api/classes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           name: formData.name,
           description: formData.description,
@@ -118,6 +121,7 @@ export default function ClassesPage() {
       const res = await fetch(`/api/classes/${classId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ is_active: !isActive }),
       });
 
@@ -135,6 +139,7 @@ export default function ClassesPage() {
     try {
       const res = await fetch(`/api/classes/${classId}`, {
         method: 'DELETE',
+        credentials: 'include',
       });
 
       if (res.ok) {
@@ -151,7 +156,9 @@ export default function ClassesPage() {
     setIsStudentsModalOpen(true);
 
     try {
-      const res = await fetch(`/api/classes/${classData.id}/students`);
+      const res = await fetch(`/api/classes/${classData.id}/students`, {
+        credentials: 'include',
+      });
       const data = await res.json();
       if (data.success) {
         setClassStudents(data.students);

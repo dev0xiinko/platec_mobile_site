@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Error creating admin:', error);
       return NextResponse.json(
-        { error: 'Failed to create admin' },
+        { error: error.message || 'Failed to create admin' },
         { status: 500 }
       );
     }

@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Error bulk creating attendance:', error);
       return NextResponse.json(
-        { error: 'Failed to create attendance records' },
+        { error: error.message || 'Failed to create attendance records' },
         { status: 500 }
       );
     }
